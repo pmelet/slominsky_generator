@@ -14,11 +14,13 @@ def calc_pos(pos,nl):
 def make_slonim(oct,division,stuff_n,start_note):
 
     # Show arg info
-    print("oct      = %d" % oct)
-    print("division = %d" % division)
-    print("stuff_n  = %d" % stuff_n)
+    print("oct           = %d" % oct)
+    print("division      = %d" % division)
+    print("stuff_n       = %d" % stuff_n)
 
-    nl=0.25 # use 16th notes
+    nl = 0.25
+    print("note duration = %f" % nl)
+
     totaloct = oct * 12
     unit = int(totaloct / division) # semitones of one unit
     print("semitones of one unit = %d" % unit)
@@ -28,52 +30,66 @@ def make_slonim(oct,division,stuff_n,start_note):
         print("Error: Division too much or too many notes")
         quit()
     
-    stuff_notes=[x for x in range(1,unit)] 
-    print("stuff notes = ",stuff_notes)
-    comb = [el for el in itertools.combinations(stuff_notes,stuff_n)]
-    print("combination of unit elements = ",comb)
-    
-    tc = clef.TrebleClef()
-    strm = stream.Part()
-    meas = stream.Measure()
-    meas.append(tc)
-    
-    #for each combination
-    for el in comb:
-        pos = 0.
-        curpitch = start_note
-        noteList = []
-        
-        for i in range(0,division):
-            nt = note.Note(curpitch,quarterLength = nl)
+
+    stuff_notes_list = [
+        [x for x in range(1,unit)], # interpolation
+        [x for x in range(-unit+1,0)], # infrapolation
+        [x for x in range(unit+1,2*unit)] # ultrapolation
+    ]
+
+    caption = 'Equal Division of ' + str(oct) + ' Octave(s) into ' + str(division) + ' Parts'
+    s = stream.Opus()
+    s.insert(0, metadata.Metadata())
+    s.metadata.title = caption
+
+    for stuff_notes in stuff_notes_list:
+
+        print("stuff notes = ",stuff_notes)
+        comb = [el for el in itertools.combinations(stuff_notes,stuff_n)]
+        print("combination of unit elements = ",comb)
+
+        tc = clef.TrebleClef()
+        strm = stream.Part()
+        meas = stream.Measure()
+        meas.append(tc)
+
+        strm.partName = 'Interpolation of ' + str(stuff_n) + ' Note(s): Root ' + (note.Note(start_note)).name
+
+        #for each combination
+        for el in comb:
+            pos = 0.
+            curpitch = start_note
+            noteList = []
+            
+            for i in range(0,division):
+                nt = note.Note(curpitch,quarterLength = nl)
+                nt.color = '#ff0000'
+                noteList.append(nt)
+                pos = calc_pos(pos,nl)
+                
+                for offset in el:
+                    nt = note.Note(curpitch + offset,quarterLength = nl)
+                    noteList.append(nt)
+                    pos = calc_pos(pos,nl)
+                curpitch += unit
+                
+            nt = note.Note(start_note + totaloct,quarterLength = nl)
             nt.color = '#ff0000'
             noteList.append(nt)
             pos = calc_pos(pos,nl)
             
-            for offset in el:
-                nt = note.Note(curpitch + offset,quarterLength = nl)
-                noteList.append(nt)
-                pos = calc_pos(pos,nl)
-            curpitch += unit
-            
-        nt = note.Note(start_note + totaloct,quarterLength = nl)
-        nt.color = '#ff0000'
-        noteList.append(nt)
-        pos = calc_pos(pos,nl)
+            if pos != 0.:
+                noteList.append(note.Rest(quarterLength = (1. - pos)))
+                    
+            meas.append(noteList)
+            meas.rightBarline = bar.Barline('double')
+            strm.append(meas)
+            meas = stream.Measure()
         
-        if pos != 0.:
-            noteList.append(note.Rest(quarterLength = (1. - pos)))
-                
-        meas.append(noteList)
-        meas.rightBarline = bar.Barline('double')
-        strm.append(meas)
-        meas = stream.Measure()
-        
-    caption = 'Equal Division of ' + str(oct) + ' Octave(s) into ' + str(division) + ' Parts \nInterpolation of ' + str(stuff_n) + ' Note(s): Root ' + (note.Note(start_note)).name
-    s = stream.Score()
-    s.insert(0, metadata.Metadata())
-    s.metadata.title = caption
-    s.insert(0, strm)
+        score = stream.Score()
+        score.insert(0, strm)
+        s.insert(0, score)
+
     #s.show('musicxml')
     s.show('lily.png')
     
